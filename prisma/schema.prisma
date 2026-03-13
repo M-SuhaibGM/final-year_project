@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  name          String?
+  email         String?     @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  credits       Int         @default(5)
+  accounts      Account[]
+  interviews    Interview[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Account {
+  id                       String   @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?  @db.Text
+  access_token             String?  @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?  @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+}
+
+model Interview {
+  id             String             @id @default(uuid())
+  jobPosition    String
+  jobDescription String             @db.Text
+  duration       String
+  interviewLink  String             @unique @map("interview_link")
+  questions      Json
+  type           Json
+  userEmail      String
+  user           User               @relation(fields: [userEmail], references: [email])
+  candidates     CandidateDetails[]
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  @@index([userEmail])
+  @@map("interviews")
+}
+
+model CandidateDetails {
+  id               String   @id @default(uuid())
+  interviewId      String   @map("interview_id")
+  userName         String?
+  userEmail        String?
+  feedback         Json?
+  exitReason       String?  @map("exit_reason")
+  completionStatus String?  @map("completion_status")
+  progressAtExit   Float?   @map("progress_at_exit")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relation to Interview
+  interview Interview @relation(fields: [interviewId], references: [interviewLink])
+
+  @@index([interviewId], map: "idx_candidate_interview_id")
+  @@map("candidate_details")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  stripeSessionId String   @unique // This is the key to preventing duplicates
+  userEmail       String
+  amount          Float
+  creditsAdded    Int
+  createdAt       DateTime @default(now())
+}
