@@ -15,7 +15,7 @@ function SelectionLetterDialog({ candidate, recommendation }) {
   const [loading, setLoading] = useState(false);
 
   // Calculate average score
-  const ratings = candidate?.feedback?.feedback?.rating;
+  const ratings = candidate?.feedback?.rating;
   const avgScore = ratings
     ? (ratings.technicalSkills + ratings.communication + ratings.problemSolving + ratings.experience) / 4
     : 0;
@@ -26,7 +26,7 @@ Dear ${candidate?.userName},
 We are pleased to inform you that after reviewing your assessment, where you scored ${avgScore}/10, we would like to move forward with your application at ${companyName}.
 
 We were particularly impressed with your performance summary: 
-"${candidate?.feedback?.feedback?.summary}"
+"${candidate?.feedback?.summary}"
 
 Best regards,
 The Recruitment Team at ${companyName}

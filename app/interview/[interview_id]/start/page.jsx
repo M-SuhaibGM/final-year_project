@@ -4,14 +4,11 @@ import { InterviewDataContext } from "@/context/InterviewDataContext";
 import Vapi from "@vapi-ai/web";
 import { toast } from "sonner";
 import axios from "axios";
-import { supabase } from "@/services/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import InterviewInterface from "./_components/InterviewInterface";
 import InterviewControls from "./_components/InterviewControls";
 import MicTest from "./_components/MicTest";
 import { AlertCircle } from "lucide-react";
-
-
 
 function StartInterview() {
   const { interviewInfo } = useContext(InterviewDataContext);
@@ -22,18 +19,19 @@ function StartInterview() {
   const [loading, setLoading] = useState(false);
   const [startTimer, setStartTimer] = useState(false);
   const [resetTimer, setResetTimer] = useState(false);
+  const [exitReason, setExitReason] = useState("Tab Closed/Interrupted"); // Default reason
   const [isMicChecked, setIsMicChecked] = useState(false);
   const [volume, setVolume] = useState(0);
   const { interview_id } = useParams();
   const router = useRouter();
 
-  const totalQuestions = interviewInfo?.interviewData?.questions?.length || 5;
 
+  const totalQuestions = interviewInfo?.interviewData?.questions?.length || 5;
 
   const handleMicReady = () => {
     setIsMicChecked(true);
-    // The useEffect will catch isMicChecked being true and start the call
   };
+
   const currentQuestionIndex = useMemo(() => {
     if (!conversation) return 1;
     try {
@@ -42,6 +40,15 @@ function StartInterview() {
       return Math.min(assistantMessages.length + 1, totalQuestions);
     } catch (e) { return 1; }
   }, [conversation, totalQuestions]);
+
+  // Calculate actual progress percentage
+
+  const progressPercentage = useMemo(() => {
+    return Math.round((currentQuestionIndex / totalQuestions) * 100);
+  }, [currentQuestionIndex, totalQuestions]);
+
+
+
 
   useEffect(() => {
     if (!interviewInfo || hasInterviewStarted || !isMicChecked) return;
@@ -67,19 +74,24 @@ function StartInterview() {
       setResetTimer(false);
     });
     vapi.current.on("call-end", () => {
+      // Logic to determine if they actually finished or just quit
+      const finalReason = currentQuestionIndex >= totalQuestions
+        ? "Interview Completed Normally"
+        : "User Ended Early";
+
+      setExitReason(finalReason);
       toast.success("Interview has ended!");
       setActiveUser(false);
-      GenerateFeedback();
+
+      // Pass the dynamic values to the feedback generator
+      GenerateFeedback(finalReason, progressPercentage);
     });
 
     if (interviewInfo?.interviewData?.questions?.length) {
       startCall();
       setHasInterviewStarted(true);
     }
-    vapi.current.on("speech-end", () => {
-      setVolume(0);
-    });
-  }, [interviewInfo, isMicChecked]);
+  }, [interviewInfo, isMicChecked, currentQuestionIndex]);
 
   const startCall = () => {
     let questionList = interviewInfo?.interviewData?.questions.map((q, i) => `${i + 1}. ${q.question}`).join("\n");
@@ -96,20 +108,36 @@ function StartInterview() {
     });
   };
 
-  const GenerateFeedback = async () => {
+  /** * UPDATED: Using API Route + Prisma
+   */
+  const GenerateFeedback = async (finalReason, finalProgress) => {
     setLoading(true);
-    const feedbackData = conversation ? (await axios.post("/api/ai-feedback", { conversation })).data : { error: "No record" };
-    const parsed = typeof feedbackData === 'string' ? JSON.parse(feedbackData.replace(/```json|```/gi, "").trim()) : feedbackData;
+    try {
+      const aiResponse = await axios.post("/api/ai-feedback", { conversation });
+      let feedbackData = aiResponse.data;
 
-    await supabase.from("interview-feedback").insert([{
-      userName: interviewInfo?.userName,
-      userEmail: interviewInfo?.userEmail,
-      interview_id,
-      feedback: parsed,
-    }]);
-    router.replace(`/interview/${interview_id}/completed`);
+      const parsedFeedback = typeof feedbackData === 'string'
+        ? JSON.parse(feedbackData.replace(/```json|```/gi, "").trim())
+        : feedbackData;
+
+      // SENDING DYNAMIC FRONTEND DATA TO BACKEND
+      await axios.post("/api/interview-feedback", {
+        userName: interviewInfo?.userName,
+        userEmail: interviewInfo?.userEmail,
+        interviewId: interview_id,
+        feedback: parsedFeedback,
+        exitReason: finalReason,
+        progressAtExit: finalProgress,
+        completionStatus: finalProgress === 100 ? "Success" : "Incomplete"
+      });
+
+      router.replace(`/interview/${interview_id}/completed`);
+    } catch (error) {
+      console.error("Feedback Generation Error:", error);
+    } finally {
+      setLoading(false);
+    }
   };
-
   return (
     <div className="p-10 lg:px-48 xl:px-56">
       {!isMicChecked ? (

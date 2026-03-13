@@ -5,7 +5,6 @@ import { Clock, Info, Loader2Icon, Video, User, Mail, Briefcase } from "lucide-r
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/services/supabaseClient";
 import { toast } from "sonner";
 import { InterviewDataContext } from "@/context/InterviewDataContext";
 
@@ -19,20 +18,21 @@ function Interview() {
   const { setInterviewInfo } = useContext(InterviewDataContext);
   const router = useRouter();
 
+  // Updated to use Fetch API with your Prisma Backend
   const GetInterviewDetail = async () => {
     setLoading(true);
     try {
-      let { data: Interviews, error } = await supabase
-        .from("Interviews")
-        .select("jobPosition,jobDescription,duration,type")
-        .eq("interview_link", interview_id);
-      
-      if (!Interviews || Interviews.length === 0) {
-        toast.error("No Interview Found with this ID");
+      const response = await fetch(`/api/interviews/details/${interview_id}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || "No Interview Found");
         return;
       }
-      setInterviewData(Interviews[0]);
+
+      setInterviewData(data);
     } catch (error) {
+      console.error(error);
       toast.error("Error fetching interview details");
     } finally {
       setLoading(false);
@@ -44,7 +44,6 @@ function Interview() {
   }, [interview_id]);
 
   const onJoinInterview = async () => {
-    // Validation Check
     if (!userName.trim() || !userEmail.trim()) {
       toast.warning("Missing Information", {
         description: "Please enter both your name and email to continue.",
@@ -54,15 +53,11 @@ function Interview() {
 
     setLoading(true);
     try {
-      let { data: Interviews } = await supabase
-        .from("Interviews")
-        .select("*")
-        .eq("interview_link", interview_id);
-
+      // We already have the detail, so we just pass it to context and move on
       setInterviewInfo({
         userName: userName,
         userEmail: userEmail,
-        interviewData: Interviews[0],
+        interviewData: interviewData,
       });
 
       router.push(`/interview/${interview_id}/start`);
@@ -77,7 +72,7 @@ function Interview() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-4xl w-full flex flex-col md:flex-row border border-blue-100">
         
-        {/* Left Side: Info Panel (Blue Theme) */}
+        {/* Left Side: Info Panel */}
         <div className="bg-blue-600 p-8 md:w-2/5 text-white flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-3 mb-8">
@@ -133,7 +128,7 @@ function Interview() {
               </label>
               <Input
                 placeholder="John Doe"
-                className="h-12 border-gray-200 focus:ring-blue-500 focus:border-blue-500"
+                className="h-12 border-gray-200"
                 onChange={(e) => setUserName(e.target.value)}
               />
             </div>
@@ -145,13 +140,13 @@ function Interview() {
               <Input
                 type="email"
                 placeholder="john@example.com"
-                className="h-12 border-gray-200 focus:ring-blue-500 focus:border-blue-500"
+                className="h-12 border-gray-200"
                 onChange={(e) => setUserEmail(e.target.value)}
               />
             </div>
 
             <Button
-              className="w-full h-12 text-lg font-bold bg-blue-600 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 mt-4 group"
+              className="w-full h-12 text-lg font-bold bg-blue-600 hover:bg-blue-700 transition-all shadow-lg mt-4 group"
               disabled={loading}
               onClick={onJoinInterview}
             >
