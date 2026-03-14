@@ -85,3 +85,11 @@ model Payment {
   creditsAdded    Int
   createdAt       DateTime @default(now())
 }
+
+model UserConfig {
+  id        String   @id @default(cuid())
+  userEmail String   @unique
+  language  String   @default("en-US")
+  voiceId   String   @default("jennifer")
+  updatedAt DateTime @updatedAt
+}

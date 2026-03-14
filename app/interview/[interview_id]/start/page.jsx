@@ -19,12 +19,37 @@ function StartInterview() {
   const [loading, setLoading] = useState(false);
   const [startTimer, setStartTimer] = useState(false);
   const [resetTimer, setResetTimer] = useState(false);
+  const [config, setConfig] = useState({ language: "en-US", voiceId: "jennifer" });
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [exitReason, setExitReason] = useState("Tab Closed/Interrupted"); // Default reason
   const [isMicChecked, setIsMicChecked] = useState(false);
   const [volume, setVolume] = useState(0);
   const { interview_id } = useParams();
   const router = useRouter();
 
+
+
+
+
+  // 1. Fetch the user's saved voice/language preferences
+  useEffect(() => {
+    const fetchUserConfig = async () => {
+      try {
+        const res = await axios.get("/api/user-config");
+        if (res.data) {
+          setConfig({
+            language: res.data.language || "en-US",
+            voiceId: res.data.voiceId || "jennifer"
+          });
+        }
+      } catch (error) {
+        console.error("Using default config due to error:", error);
+      } finally {
+        setIsConfigLoaded(true);
+      }
+    };
+    fetchUserConfig();
+  }, [])
 
   const totalQuestions = interviewInfo?.interviewData?.questions?.length || 5;
 
@@ -51,7 +76,7 @@ function StartInterview() {
 
 
   useEffect(() => {
-    if (!interviewInfo || hasInterviewStarted || !isMicChecked) return;
+    if (!interviewInfo || hasInterviewStarted || !isMicChecked || !isConfigLoaded) return;
     vapi.current = new Vapi(process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY);
 
     vapi.current.on("message", (message) => {
@@ -74,16 +99,10 @@ function StartInterview() {
       setResetTimer(false);
     });
     vapi.current.on("call-end", () => {
-      // Logic to determine if they actually finished or just quit
-      const finalReason = currentQuestionIndex >= totalQuestions
-        ? "Interview Completed Normally"
-        : "User Ended Early";
-
+      const finalReason = currentQuestionIndex >= totalQuestions ? "Interview Completed Normally" : "User Ended Early";
       setExitReason(finalReason);
       toast.success("Interview has ended!");
       setActiveUser(false);
-
-      // Pass the dynamic values to the feedback generator
       GenerateFeedback(finalReason, progressPercentage);
     });
 
@@ -91,23 +110,42 @@ function StartInterview() {
       startCall();
       setHasInterviewStarted(true);
     }
-  }, [interviewInfo, isMicChecked, currentQuestionIndex]);
+  }, [interviewInfo, isMicChecked, isConfigLoaded, currentQuestionIndex]);
 
+
+  // 3. Dynamic startCall using DB values
   const startCall = () => {
     let questionList = interviewInfo?.interviewData?.questions.map((q, i) => `${i + 1}. ${q.question}`).join("\n");
+
+    // Determine dynamic first message based on language
+    let welcomeMsg = `Hi ${interviewInfo?.userName}! Ready to start?`;
+    if (config.language.startsWith("hi")) welcomeMsg = `नमस्ते ${interviewInfo?.userName}! क्या आप साक्षात्कार शुरू करने के लिए तैयार हैं?`;
+    if (config.language.startsWith("ur")) welcomeMsg = `اسلام و علیکم ${interviewInfo?.userName}! کیا آپ انٹرویو کے لیے تیار ہیں؟`;
+
     vapi.current.start({
       name: "AI Recruiter",
-      firstMessage: `Hi ${interviewInfo?.userName}! Ready to start?`,
-      transcriber: { provider: "deepgram", model: "nova-2", language: "en-US" },
-      voice: { provider: "playht", voiceId: "jennifer" },
+      firstMessage: welcomeMsg,
+      transcriber: {
+        provider: "deepgram",
+        model: "nova-2",
+        language: config.language // FROM DB
+      },
+      voice: {
+        provider: config.voiceId === "hindi-female-1" ? "azure" : "playht", // Provider logic
+        voiceId: config.voiceId // FROM DB
+      },
       model: {
         provider: "openai",
         model: "gpt-4",
-        messages: [{ role: "system", content: `You are an AI recruiter. Ask one by one: ${questionList}` }],
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI recruiter. Strictly conduct the interview in the language: ${config.language}. Ask these questions one by one: ${questionList}.  Wait for the user to answer before moving to the next question.`
+          }
+        ],
       },
     });
   };
-
   /** * UPDATED: Using API Route + Prisma
    */
   const GenerateFeedback = async (finalReason, finalProgress) => {
