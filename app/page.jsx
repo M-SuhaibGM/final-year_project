@@ -114,7 +114,7 @@ export default function LandingPage() {
           <div className="relative mx-auto max-w-5xl group">
             <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-400 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
             <div className="relative bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-              <img src="/dashboard.png" alt="Dashboard Preview" className="w-full h-auto" />
+              <img src="/dashboard.jpeg" alt="Dashboard Preview" className="w-full h-auto" />
             </div>
           </div>
         </div>
