@@ -49,9 +49,9 @@ function MicTest({ onMicReady }) {
     }, []);
 
     return (
-        <div className="flex flex-col items-center justify-center p-10 bg-white border-2 border-dashed rounded-3xl shadow-sm">
-            <div className="bg-blue-50 p-4 rounded-full mb-4">
-                <Mic className={`h-8 w-8 ${isTesting ? "text-primary animate-pulse" : "text-gray-400"}`} />
+        <div className="flex flex-col items-center justify-center p-10 bg-blue-200 border-2 border-dashed rounded-3xl shadow-sm">
+            <div className="bg-blue-500 p-4 rounded-full mb-4">
+                <Mic className={`h-8 w-8 ${isTesting ? "text-primary animate-pulse" : "text-white"}`} />
             </div>
 
             <h2 className="text-xl font-bold mb-2">Check Your Microphone</h2>

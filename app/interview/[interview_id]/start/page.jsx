@@ -8,7 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import InterviewInterface from "./_components/InterviewInterface";
 import InterviewControls from "./_components/InterviewControls";
 import MicTest from "./_components/MicTest";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Bot } from "lucide-react";
 
 function StartInterview() {
   const { interviewInfo } = useContext(InterviewDataContext);
@@ -177,35 +177,62 @@ function StartInterview() {
     }
   };
   return (
-    <div className="p-10 lg:px-48 xl:px-56">
-      {!isMicChecked ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <MicTest onMicReady={handleMicReady} />
-          <p className="mt-5 text-gray-400 text-xs flex items-center gap-2">
-            <AlertCircle className="h-3 w-3" />
-            Your audio is only used for the interview and is not stored during this test.
-          </p>
-        </div>
-      ) : (
-        <>
-          <InterviewInterface
-            volume={volume}
-            interviewInfo={interviewInfo}
-            currentQuestionIndex={currentQuestionIndex}
-            totalQuestions={totalQuestions}
-            activeUser={activeUser}
-            startTimer={startTimer}
-            resetTimer={resetTimer}
-          />
+    <div className="h-screen w-screen overflow-hidden flex flex-col relative bg-slate-800 text-white">
+      {/* 1. ANIMATED BACKGROUND GRADIENT */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-900/30 blur-[120px] rounded-full animate-pulse"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-950/40 blur-[120px] rounded-full"></div>
+      </div>
 
+      {/* 2. HEADER */}
+      <header className="h-16 shrink-0 border-b border-white/10 bg-blue-100 backdrop-blur-xl flex items-center justify-between px-8 z-20">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20">
+            <Bot className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="font-black text-lg tracking-tight text-white uppercase">
+            AI <span className="text-blue-500">Recruiter</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20 uppercase tracking-widest">
+            Session Active
+          </span>
+        </div>
+      </header>
+
+      {/* 3. MAIN INTERFACE (CENTER) */}
+      <main className="flex-1 relative z-10 flex flex-col items-center justify-center px-4 md:px-20 overflow-hidden">
+        {!isMicChecked ? (
+          <div className="glass-card p-10 rounded-[2rem] bg-blue-600 border border-white/10 backdrop-blur-2xl flex flex-col items-center">
+            <MicTest onMicReady={handleMicReady} />
+          </div>
+        ) : (
+          <div className="w-full max-w-5xl h-full flex flex-col justify-center py-6">
+            <InterviewInterface
+              interviewInfo={interviewInfo}
+              currentQuestionIndex={currentQuestionIndex}
+              totalQuestions={totalQuestions}
+              activeUser={activeUser}
+            />
+          </div>
+        )}
+      </main>
+      {isMicChecked && (
+        < footer className="h-28 shrink-0 bg-blue-100 backdrop-blur-2xl border-t border-white/10 px-8 md:px-20 z-20">
           <InterviewControls
             loading={loading}
             activeUser={activeUser}
             onStop={() => vapi.current?.stop()}
+            volume={volume}
+            startTimer={startTimer}
+            resetTimer={resetTimer}
+            currentQuestionIndex={currentQuestionIndex}
+            totalQuestions={totalQuestions}
           />
-        </>
-      )}
-    </div>
+        </footer>)
+      }
+    </div >
   );
 }
 
