@@ -5,9 +5,10 @@ import Link from "next/link";
 import React from "react";
 import { toast } from "sonner";
 
-function InterviewCard({ interview, viewDetail = false, index }) {
+function InterviewCard({ interview, viewDetail = false, index ,candidateCount }) {
+
   const url = process.env.NEXT_PUBLIC_HOST_URL + "/interview/" + interview?.interviewLink;
-  console.log(interview.interviewLink,url)
+  console.log(interview)
   const copyLink = () => {
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard!", {
@@ -53,7 +54,7 @@ function InterviewCard({ interview, viewDetail = false, index }) {
             <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Submissions</span>
             <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-sm">
               <Users className="w-4 h-4" />
-              {interview.candidates?.length || 0}
+              {candidateCount || 0}
             </div>
           </div>
         </div>

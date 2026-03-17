@@ -27,13 +27,15 @@ import autoTable from "jspdf-autotable";
 function CandidateList({ candidate }) {
   const getAverageScore = (feedbackData) => {
 
-    if (feedbackData === null) return 0;
-    const r = feedbackData?.rating;
-    const avg = (r.technicalSkills || 0) + (r.communication || 0) + (r.problemSolving || 0) + (r.experience || 0);
-    return avg / 4;
-  };
+    if (feedbackData?.requestID === null || feedbackData === null) {
+      return 0;
 
-  console.log(candidate)
+    } else {
+      const r = feedbackData?.rating;
+      const avg = (r.technicalSkills || 0) + (r.communication || 0) + (r.problemSolving || 0) + (r.experience || 0);
+      return avg / 4;
+    }
+  };
   const rankedCandidates = candidate ? [...candidate].sort((a, b) =>
     getAverageScore(b.feedback) - getAverageScore(a.feedback)
   ) : [];

@@ -34,6 +34,8 @@ function AllInterview() {
     }
   };
 
+  console.log(interviewList)
+
   // --- RENDERING LOGIC ---
   let content;
 
@@ -65,7 +67,7 @@ function AllInterview() {
             interview={interview}
             key={interview.id}
             // Passing the count if you want to show it on the card
-            candidateCount={interview?.candidates}
+            candidateCount={interview?._count?.candidates}
           />
         ))}
       </div>

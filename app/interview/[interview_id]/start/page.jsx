@@ -8,7 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import InterviewInterface from "./_components/InterviewInterface";
 import InterviewControls from "./_components/InterviewControls";
 import MicTest from "./_components/MicTest";
-import { AlertCircle, Bot } from "lucide-react";
+import {  Bot } from "lucide-react";
 
 function StartInterview() {
   const { interviewInfo } = useContext(InterviewDataContext);
