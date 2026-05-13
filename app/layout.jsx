@@ -7,14 +7,14 @@ export const metadata = {
   title: "AI Recruiter",
   description:
     "AI-driven interview manager that simplifies scheduling, evaluation, and candidate tracking.",
-     icons: {
+  icons: {
     icon: "/logo.png", // your logo in /public
   },
 };
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
+    <html lang="en"   suppressHydrationWarning >
+      <body className="antialiased" suppressHydrationWarning >
         <SessionWrapper>
           {children}
           <Toaster />
