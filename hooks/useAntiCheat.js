@@ -1,0 +1,40 @@
+"use client";
+import { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
+
+export function useAntiCheat(isInterviewActive) {
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const timestamps = useRef([]);
+
+  useEffect(() => {
+    // Only track when the Vapi call is actively live
+    if (!isInterviewActive) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitchCount((prev) => {
+          const newCount = prev + 1;
+          
+          // Stern warning alert to discourage further cheating attempts
+          toast.error(`Warning: Tab switching detected (${newCount}). This incident has been flagged for HR review.`, {
+            duration: 6000,
+            style: { background: '#fef2f2', color: '#991b1b', border: '1px solid #fee2e2' }
+          });
+
+          return newCount;
+        });
+
+        // Push current timestamp to log exactly when they left
+        timestamps.current.push(new Date().toISOString());
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isInterviewActive]);
+
+  return { tabSwitchCount, switchTimestamps: timestamps.current };
+}

@@ -18,6 +18,11 @@ export const SideBarOption = [
     path: "/dashboard",
   },
   {
+    name: "communication",
+    icon: User2Icon,
+    path: "/communication"
+  },
+  {
     name: "candidates details",
     icon: Calendar,
     path: "/scheduled-interview",
@@ -37,6 +42,13 @@ export const SideBarOption = [
     icon: Settings,
     path: "/settings",
   },
+  {
+    name: "About Us",
+    icon: BriefcaseBusinessIcon,
+    path: "/about"
+  },
+  
+
 ];
 
 export const InterviewType = [
@@ -110,7 +122,7 @@ for hire or not with a message. Give me the response in JSON format:
 /* ─────────────────────────────────────────────
    Inject keyframes once at module level
 ───────────────────────────────────────────── */
-  export const   STYLES = `
+export const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 
   @keyframes orb-drift-1 {
@@ -195,7 +207,7 @@ for hire or not with a message. Give me the response in JSON format:
 
 
 
-  export const STYLESs = `
+export const STYLESs = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
 
   @keyframes ring-pulse {
@@ -273,7 +285,7 @@ for hire or not with a message. Give me the response in JSON format:
 
 
 
-  export const STYLEScontrols = `
+export const STYLEScontrols = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap');
 
   @keyframes bar-wave {

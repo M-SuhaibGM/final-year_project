@@ -21,6 +21,7 @@ export async function GET(req) {
                 duration: true,
                 interviewLink: true,
                 createdAt: true,
+                questions: true,
                 // Including a count of candidates who took the interview
                 _count: {
                     select: { candidates: true }

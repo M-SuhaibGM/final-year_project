@@ -55,3 +55,17 @@ export async function POST(req) {
     );
   }
 }
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const interviews = await prisma.interview.findMany({
+    where: { userEmail: session.user.email },
+    select: { id: true, jobPosition: true, interviewLink: true },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return NextResponse.json(interviews);
+}

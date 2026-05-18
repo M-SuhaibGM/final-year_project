@@ -3,9 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider     = "mysql"
+  relationMode = "prisma"
 }
-
 
 model User {
   id            String      @id @default(cuid())
@@ -60,18 +60,18 @@ model Interview {
 }
 
 model CandidateDetails {
-  id               String   @id @default(uuid())
-  interviewId      String   @map("interview_id")
+  id               String    @id @default(uuid())
+  interviewId      String    @map("interview_id")
   userName         String?
   userEmail        String?
   feedback         Json?
-  exitReason       String?  @map("exit_reason")
-  completionStatus String?  @map("completion_status")
-  progressAtExit   Float?   @map("progress_at_exit")
-  createdAt        DateTime @default(now()) @map("created_at")
-
-  // Relation to Interview
-  interview Interview @relation(fields: [interviewId], references: [interviewLink])
+  exitReason       String?   @map("exit_reason")
+  completionStatus String?   @map("completion_status")
+  progressAtExit   Float?    @map("progress_at_exit")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  tabSwitches      Int       @default(0) @map("tab_switches")
+  securityFlags    Json?     @map("security_flags")
+  interview        Interview @relation(fields: [interviewId], references: [interviewLink])
 
   @@index([interviewId], map: "idx_candidate_interview_id")
   @@map("candidate_details")

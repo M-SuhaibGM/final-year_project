@@ -18,3 +18,8 @@ export async function getUserCredits() {
 
     return user?.credits || 0;
 }
+
+export async function deleteInterview(id) {
+    await prisma.interview.delete({ where: { id } });
+    redirect('/dashboard');
+}

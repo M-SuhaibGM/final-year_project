@@ -8,7 +8,6 @@ import { toast } from "sonner";
 function InterviewCard({ interview, viewDetail = false, index ,candidateCount }) {
 
   const url = process.env.NEXT_PUBLIC_HOST_URL + "/interview/" + interview?.interviewLink;
-  console.log(interview)
   const copyLink = () => {
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard!", {

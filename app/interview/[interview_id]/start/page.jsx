@@ -9,7 +9,9 @@ import InterviewInterface from "./_components/InterviewInterface";
 import InterviewControls from "./_components/InterviewControls";
 import MicTest from "./_components/MicTest";
 import { Bot, Wifi, Clock, Shield } from "lucide-react";
-import {STYLES} from "@/services/Constants"
+import { STYLES } from "@/services/Constants"
+import { useAntiCheat } from "@/hooks/useAntiCheat";
+const { tabSwitchCount, switchTimestamps } = useAntiCheat(activeUser)
 
 
 
@@ -87,46 +89,78 @@ function StartInterview() {
   useEffect(() => { conversationRef.current = conversation; }, [conversation]);
 
   /* ── vapi setup ── */
+  /* ── vapi setup ── */
   useEffect(() => {
+    // 1. Guard clauses
     if (!interviewInfo || hasInterviewStarted || !isMicChecked || !isConfigLoaded) return;
     if (initStartedRef.current) return;
+
+    let isMounted = true; // Track if component is still mounted
     initStartedRef.current = true;
 
-    vapi.current = new Vapi(process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY);
+    // 2. Initialize Vapi instance
+    const vapiInstance = new Vapi(process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY);
+    vapi.current = vapiInstance;
 
-    vapi.current.on("call-start", () => { isCallActiveRef.current = true; setActiveUser(true); });
-    vapi.current.on("speech-start", () => { toast.success("Interview started!"); setStartTimer(false); setResetTimer(true); });
-    vapi.current.on("speech-end", () => { setStartTimer(true); setResetTimer(false); });
-    vapi.current.on("volume-level", (l) => setVolume(l));
-    vapi.current.on("message", (msg) => {
-      if (msg?.conversation) { const c = JSON.stringify(msg.conversation); setConversation(c); conversationRef.current = c; }
-      else if (msg?.type === "transcript" && msg?.transcript) { const c = JSON.stringify(msg.transcript); setConversation(c); conversationRef.current = c; }
+    // 3. Event Listeners
+    vapiInstance.on("call-start", () => {
+      isCallActiveRef.current = true;
+      setActiveUser(true);
     });
-    vapi.current.on("call-end", () => {
+
+    vapiInstance.on("speech-start", () => {
+      toast.success("Interview started!");
+      setStartTimer(false);
+      setResetTimer(true);
+    });
+
+    vapiInstance.on("speech-end", () => {
+      setStartTimer(true);
+      setResetTimer(false);
+    });
+
+    vapiInstance.on("volume-level", (l) => setVolume(l));
+
+    vapiInstance.on("message", (msg) => {
+      if (msg?.conversation) {
+        const c = JSON.stringify(msg.conversation);
+        setConversation(c);
+      }
+    });
+
+    vapiInstance.on("call-end", () => {
       if (feedbackCalledRef.current) return;
       feedbackCalledRef.current = true;
       isCallActiveRef.current = false;
-      const idx = currentQuestionIndexRef.current;
-      const prog = progressPercentageRef.current;
-      const conv = conversationRef.current;
-      const reason = idx >= totalQuestions ? "Interview Completed Normally" : "User Ended Early";
-      toast.success("Interview ended!");
       setActiveUser(false);
-      GenerateFeedback(reason, prog, conv);
+
+      // Use the refs to get latest values during closure
+      GenerateFeedback("Interview Ended", progressPercentageRef.current, conversationRef.current);
     });
-    vapi.current.on("error", (err) => {
-      console.error("❌ [Vapi] error:", JSON.stringify(err), err);
-      if (!isCallActiveRef.current) return;
+
+    vapiInstance.on("error", (err) => {
+      console.error("❌ [Vapi] error:", err);
+      // Ignore the 'no-room' error during unmounts/remounts
+      if (err.type === 'daily-error' && !isCallActiveRef.current) return;
       toast.error("Connection error — check mic and refresh.");
     });
 
-    if (interviewInfo?.interviewData?.questions?.length) { startCall(); setHasInterviewStarted(true); }
+    // 4. Start the call ONLY if we have data and are still mounted
+    if (interviewInfo?.interviewData?.questions?.length && isMounted) {
+      startCall();
+      setHasInterviewStarted(true);
+    }
 
+    // 5. Cleanup Function
     return () => {
-      if (isCallActiveRef.current && vapi.current) { try { vapi.current.stop(); } catch { } isCallActiveRef.current = false; }
+      isMounted = false;
+      initStartedRef.current = false; // Allow re-init on true remount
+      if (vapiInstance) {
+        vapiInstance.stop();
+        vapiInstance.removeAllListeners();
+      }
     };
   }, [interviewInfo, isMicChecked, isConfigLoaded]);
-
   const startCall = () => {
     const VALID = ["Clara", "Godfrey", "Layla", "Sid", "Gustavo", "Elliot", "Kylie", "Rohan",
       "Lily", "Savannah", "Hana", "Neha", "Cole", "Harry", "Paige", "Spencer", "Nico", "Kai",
@@ -164,6 +198,12 @@ function StartInterview() {
         interviewId: interview_id, feedback: parsed,
         exitReason: reason, progressAtExit: progress,
         completionStatus: progress === 100 ? "Success" : "Incomplete",
+        tabSwitches: tabSwitchCount,
+        securityFlags: {
+          timestamps: switchTimestamps,
+          browser: navigator.userAgent,
+          platform: navigator.platform
+        }
       });
       router.replace(`/interview/${interview_id}/completed`);
     } catch (err) {
