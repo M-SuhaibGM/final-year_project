@@ -1,13 +1,13 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { 
-  Briefcase, 
-  Users, 
-  Calendar, 
-  ArrowRight, 
-  Sparkles, 
+import {
+  Briefcase,
+  Users,
+  Calendar,
+  ArrowRight,
+  Sparkles,
   Video,
-  ExternalLink 
+  ExternalLink
 } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -20,6 +20,7 @@ function AllInterview() {
   const { data: session } = useSession();
   const user = session?.user;
 
+  // 1. Fetch data when user session becomes available
   useEffect(() => {
     if (user?.email) {
       GetInterviewList();
@@ -76,9 +77,9 @@ function AllInterview() {
   );
 
   return (
-    <div className="bg-white border rounded-[30px] shadow-sm overflow-hidden flex flex-col" 
-         style={{ height: '72vh' }}>
-      
+    <div className="bg-white border rounded-[30px] shadow-sm overflow-hidden flex flex-col"
+      style={{ height: '72vh' }}>
+
       {/* Table Header Section */}
       <div className="p-6 border-b bg-white shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -89,17 +90,17 @@ function AllInterview() {
             </div>
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Interview Management</h1>
           </div>
-          
+
           <div className="flex items-center  gap-3">
-             <div className="text-right flex items-center gap-2 justify-center ">
-                <p className="text-xs text-gray-600 uppercase font-bold tracking-wider">Total Active :</p>
-                <p className="text-xl font-black text-blue-600">{isLoading ? "..." : interviewList.length}</p>
-             </div>
-             <Link href={"/dashboard/create-interview"}>
-                <Button className="rounded-xl bg-blue-600 hover:bg-blue-700 shadow-md">
-                  + New Interview
-                </Button>
-             </Link>
+            <div className="text-right flex items-center gap-2 justify-center ">
+              <p className="text-xs text-gray-600 uppercase font-bold tracking-wider">Total Active :</p>
+              <p className="text-xl font-black text-blue-600">{isLoading ? "..." : interviewList.length}</p>
+            </div>
+            <Link href={"/dashboard/create-interview"}>
+              <Button className="rounded-xl bg-blue-600 hover:bg-blue-700 shadow-md">
+                + New Interview
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -135,7 +136,7 @@ function AllInterview() {
                       <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                         <Briefcase size={18} />
                       </div>
-                      <Link 
+                      <Link
                         href={`/all-interview/${interview.id}`}
                         className="font-bold text-gray-700 hover:text-blue-600 flex items-center gap-1 group-hover:underline decoration-2 underline-offset-4"
                       >
@@ -178,10 +179,10 @@ function AllInterview() {
 
       {/* Table Footer */}
       <div className="px-6 py-4 bg-gray-50 border-t shrink-0 flex justify-between items-center text-xs text-gray-400 font-medium">
-         <span>
-           {isLoading ? "Loading data..." : `Showing ${interviewList.length} total entries`}
-         </span>
-         <span className="italic">AI Voice Recruiter System v1.0</span>
+        <span>
+          {isLoading ? "Loading data..." : `Showing ${interviewList.length} total entries`}
+        </span>
+        <span className="italic">AI Voice Recruiter System v1.0</span>
       </div>
     </div>
   );

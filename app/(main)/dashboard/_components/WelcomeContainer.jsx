@@ -27,7 +27,6 @@ function WelcomeContainer() {
     if (user?.id) {
       const fetchFreshCredits = async () => {
         const credits = await getUserCredits();
-        console.log("Fetched fresh credits:", credits);
         setLiveCredits(credits);
       };
       fetchFreshCredits();

@@ -7,7 +7,6 @@ import React from "react";
 function CandidateReviewCard({ interview, index }) {
 
   const candidateCount = interview?.candidates?.length || 0;
-  console.log("Rendering CandidateReviewCard with interview data:", interview)
 
   return (
     <div
