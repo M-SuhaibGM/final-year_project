@@ -24,7 +24,7 @@ function QuestionList({ formData, onCreateLink ,credits }) {
   const GenerateQuestionList = async () => {
     setLoading(true);
     try {
-      const result = await axios.post("/api/ai-model", { ...formData });
+      const result = await axios.post("/api/generate-questions", { ...formData });
       let content = result.data;
 
       // Extract JSON logic
