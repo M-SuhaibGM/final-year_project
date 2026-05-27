@@ -262,7 +262,7 @@ function StartInterview() {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: `You are an AI recruiter. Conduct the interview in ${sysLang[config.language] || "English"}. Ask these questions one by one:\n${ql}\nWait for the user's full answer before moving to the next question.`,
+          content: `You are an AI recruiter. Conduct the interview in ${sysLang[config.language] || "English"}. Ask these questions one by one:\n${ql}\nWait for the at least 3s user's  full answer before moving to the next question.`,
         }],
       },
     });

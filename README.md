@@ -34,3 +34,25 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+DATABASE_URL="mysql://root:5277@localhost:3306/fyp_db"
+NEXTAUTH_URL=http://localhost:3000
+AUTH_SECRET="your_generated_secret_here"
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+STRIPE_SECRET_KEY=""
+GROQ_API_KEY=""
+NEXT_PUBLIC_VAPI_PUBLIC_KEY=
+EMAIL_USER=""
+EMAIL_PASS=""
+DATABASE_NAME="fyp_db"
+DATABASE_USER="root"
+DATABASE_PASSWORD="5277"
+DATABASE_HOST="localhost"
+DATABASE_PORT="3306"
+
+
+
+
