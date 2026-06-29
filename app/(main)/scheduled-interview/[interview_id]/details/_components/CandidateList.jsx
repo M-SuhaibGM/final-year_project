@@ -31,7 +31,7 @@ function CandidateList({ candidate }) {
       return 0;
 
     } else {
-      const r = feedbackData?.rating;
+      const r = feedbackData?.feedback?.rating;
       const avg = (r.technicalSkills || 0) + (r.communication || 0) + (r.problemSolving || 0) + (r.experience || 0);
       return avg / 4;
     }
@@ -48,13 +48,21 @@ function CandidateList({ candidate }) {
     doc.setTextColor(100);
     doc.text(`Generated on: ${moment().format("LL")}`, 14, 30);
 
-    const tableRows = rankedCandidates.map((c, index) => [
-      index + 1,
-      c.userName.toUpperCase(),
-      c.userEmail,
-      getAverageScore(c.feedback).toFixed(1) + "/10",
-      moment(c.created_at).format("DD MMM, YYYY")
-    ]);
+    const tableRows = rankedCandidates.map((c, index) => {
+      // Find whichever field contains the valid date timestamp
+      const rawDate = c.created_at || c.createdAt;
+
+      // If no date exists at all, show "N/A" instead of breaking or defaulting to today's date
+      const formattedDate = rawDate ? moment(rawDate).format("DD MMM, YYYY") : "N/A";
+
+      return [
+        index + 1,
+        c.userName ? c.userName.toUpperCase() : "UNKNOWN",
+        c.userEmail || "N/A",
+        getAverageScore(c.feedback).toFixed(1) + "/10",
+        formattedDate
+      ];
+    });
 
     autoTable(doc, {
       startY: 35,
@@ -181,8 +189,7 @@ function CandidateList({ candidate }) {
                 <h2 className="font-bold text-slate-800 uppercase tracking-tight text-base">{c?.userName}</h2>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Calendar className="w-3 h-3" />
-                  <span className="text-xs font-medium">{moment(c?.created_at).format("DD MMM, YYYY")}</span>
-                </div>
+                  <span className="text-xs font-medium">{moment(c?.createdAt).format("DD MMM, YYYY")}</span>                </div>
               </div>
             </div>
 
@@ -202,6 +209,18 @@ function CandidateList({ candidate }) {
                 </span>) : (<span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md mt-1 flex items-center gap-1">
                   <UserCheck className="w-3 h-3" /> {c?.exitReason}
                 </span>)}
+              </div>
+              <div className="flex flex-col items-start md:items-end">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tab Switches</span>
+                {c?.tabSwitches > 0 ? (
+                  <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md mt-1 flex items-center gap-1">
+                    ⚠️ {c?.tabSwitches} switches
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md mt-1">
+                    0 switches
+                  </span>
+                )}
               </div>
               <CandidateFeedbackDialog candidate={c} />
             </div>

@@ -18,7 +18,7 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="h-[80vh] overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center px-3 sm:px-4 py-3">
+    <div className="h-[90vh] overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center px-3 sm:px-4 py-3">
       
       {/* Main Container */}
       <div className="relative w-full h-full max-w-7xl bg-white/80 backdrop-blur-lg border border-blue-100 shadow-2xl rounded-[35px] overflow-hidden grid lg:grid-cols-2">

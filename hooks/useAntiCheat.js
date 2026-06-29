@@ -1,10 +1,18 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
+import axios from "axios";
 
-export function useAntiCheat(isInterviewActive) {
+export function useAntiCheat(isInterviewActive, candidateId, dbTabSwitches) {
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const timestamps = useRef([]);
+
+  // Sync state when database value is retrieved
+  useEffect(() => {
+    if (dbTabSwitches) {
+      setTabSwitchCount(dbTabSwitches);
+    }
+  }, [dbTabSwitches]);
 
   useEffect(() => {
     // Only track when the Vapi call is actively live
@@ -21,6 +29,17 @@ export function useAntiCheat(isInterviewActive) {
             style: { background: '#fef2f2', color: '#991b1b', border: '1px solid #fee2e2' }
           });
 
+          // Log the tab switch to the database in real-time
+          if (candidateId) {
+            axios.post("/api/interview-feedback/tab-switch", {
+              candidateId,
+              browser: typeof navigator !== "undefined" ? navigator.userAgent : "",
+              platform: typeof navigator !== "undefined" ? navigator.platform : "",
+            }).catch((err) => {
+              console.error("Failed to log tab switch in real-time:", err);
+            });
+          }
+
           return newCount;
         });
 
@@ -34,7 +53,7 @@ export function useAntiCheat(isInterviewActive) {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isInterviewActive]);
+  }, [isInterviewActive, candidateId]);
 
   return { tabSwitchCount, switchTimestamps: timestamps.current };
 }

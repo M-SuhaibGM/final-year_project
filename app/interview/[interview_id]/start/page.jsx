@@ -25,9 +25,35 @@ function StartInterview() {
   const [isMicChecked, setIsMicChecked] = useState(false);
   const [volume, setVolume] = useState(0);
   const [elapsedSecs, setElapsedSecs] = useState(0);
+  const [candidateId, setCandidateId] = useState(null);
+  const [dbTabSwitches, setDbTabSwitches] = useState(0);
 
-  const { tabSwitchCount, switchTimestamps } = useAntiCheat(activeUser);
   const { interview_id } = useParams();
+
+  // Initialize candidate details in database on start
+  useEffect(() => {
+    if (!interviewInfo?.userEmail || !interview_id) return;
+    
+    const initCandidate = async () => {
+      try {
+        const res = await axios.post("/api/interview-feedback/init", {
+          interviewId: interview_id,
+          userName: interviewInfo.userName,
+          userEmail: interviewInfo.userEmail,
+        });
+        if (res.data?.success && isMountedRef.current) {
+          setCandidateId(res.data.candidateId);
+          setDbTabSwitches(res.data.tabSwitches || 0);
+        }
+      } catch (err) {
+        console.error("Error initializing candidate details:", err);
+      }
+    };
+
+    initCandidate();
+  }, [interviewInfo, interview_id]);
+
+  const { tabSwitchCount, switchTimestamps } = useAntiCheat(activeUser, candidateId, dbTabSwitches);
   const router = useRouter();
 
   // ── Refs ──────────────────────────────────────────────────
@@ -38,7 +64,11 @@ function StartInterview() {
   const feedbackCalledRef = useRef(false);
   const isCallActiveRef = useRef(false);
   const initStartedRef = useRef(false);
+  const startedNotifiedRef = useRef(false);
   const timerRef = useRef(null);
+  const questionsCompletedRef = useRef(false);
+  const lastUserMsgCountRef = useRef(0);
+  const autoEndTimeoutRef = useRef(null);
   const isMountedRef = useRef(true);   // ✅ FIX 4: track mount state
 
   // ── Track mount/unmount ───────────────────────────────────
@@ -89,16 +119,32 @@ function StartInterview() {
 
   const totalQuestions = interviewInfo?.interviewData?.questions?.length || 5;
 
+  // Compute current question index by matching assistant messages to the known questions
   const currentQuestionIndex = useMemo(() => {
     if (!conversation) return 1;
     try {
       const logs = JSON.parse(conversation);
-      return Math.min(
-        logs.filter(m => m.role === "assistant" || m.role === "bot").length + 1,
-        totalQuestions
-      );
-    } catch { return 1; }
-  }, [conversation, totalQuestions]);
+      const assistantMsgs = logs.filter(m => m.role === "assistant" || m.role === "bot");
+      const questions = interviewInfo?.interviewData?.questions || [];
+
+      // Find how many distinct questions the assistant has actually asked by matching text
+      let maxMatched = 0;
+      assistantMsgs.forEach((msg) => {
+        const text = (msg?.text || msg?.content || "").toString().toLowerCase();
+        questions.forEach((q, i) => {
+          if (!q || !q.question) return;
+          const qtext = q.question.toLowerCase().slice(0, 40); // compare prefix
+          if (text.includes(qtext) || qtext.includes(text.slice(0, 40))) {
+            maxMatched = Math.max(maxMatched, i + 1);
+          }
+        });
+      });
+
+      return Math.min(Math.max(1, maxMatched + 1), totalQuestions);
+    } catch (e) {
+      return 1;
+    }
+  }, [conversation, totalQuestions, interviewInfo]);
 
   const progressPercentage = useMemo(() =>
     Math.round((currentQuestionIndex / totalQuestions) * 100),
@@ -114,6 +160,52 @@ function StartInterview() {
     conversationRef.current = conversation;
   }, [conversation]);
 
+  // ── When assistant has asked all questions, give user a short window to ask queries
+  useEffect(() => {
+    if (!conversation) return;
+    try {
+      const logs = JSON.parse(conversation);
+      const assistantCount = logs.filter(m => m.role === "assistant" || m.role === "bot").length;
+      const userCount = logs.filter(m => m.role === "user").length;
+
+      if (assistantCount >= totalQuestions) {
+        // start the auto-end window only once
+        if (!questionsCompletedRef.current) {
+          questionsCompletedRef.current = true;
+          lastUserMsgCountRef.current = userCount;
+          // wait 12s for any user query; if none, end the call
+          autoEndTimeoutRef.current = setTimeout(() => {
+            const curLogs = JSON.parse(conversationRef.current || "[]");
+            const curUserCount = curLogs.filter(m => m.role === "user").length;
+            if (curUserCount <= lastUserMsgCountRef.current) {
+              if (isMountedRef.current) toast.success("Good luck!");
+              if (vapiRef.current && isCallActiveRef.current) {
+                try { vapiRef.current.stop(); } catch { }
+              }
+            } else {
+              // user asked a question — cancel auto-end
+              questionsCompletedRef.current = false;
+            }
+          }, 12000);
+        }
+      } else {
+        // assistant hasn't finished yet — clear any pending auto-end
+        if (autoEndTimeoutRef.current) {
+          clearTimeout(autoEndTimeoutRef.current);
+          autoEndTimeoutRef.current = null;
+        }
+        questionsCompletedRef.current = false;
+      }
+    } catch (e) { /* ignore parse errors */ }
+
+    return () => {
+      if (autoEndTimeoutRef.current) {
+        clearTimeout(autoEndTimeoutRef.current);
+        autoEndTimeoutRef.current = null;
+      }
+    };
+  }, [conversation, totalQuestions]);
+
   // ── Vapi setup ────────────────────────────────────────────
   useEffect(() => {
     if (!interviewInfo || hasInterviewStarted || !isMicChecked || !isConfigLoaded) return;
@@ -127,10 +219,14 @@ function StartInterview() {
     vapi.on("call-start", () => {
       isCallActiveRef.current = true;
       if (isMountedRef.current) setActiveUser(true);   // ✅ FIX 4
+      // Show the "Interview started" toast only once when the call actually begins
+      if (!startedNotifiedRef.current) {
+        startedNotifiedRef.current = true;
+        toast.success("Interview started!");
+      }
     });
 
     vapi.on("speech-start", () => {
-      toast.success("Interview started!");
       if (isMountedRef.current) {
         setStartTimer(false);
         setResetTimer(true);
@@ -153,8 +249,40 @@ function StartInterview() {
         const c = JSON.stringify(msg.conversation);
         conversationRef.current = c;                    // ✅ FIX 3: update ref immediately
         if (isMountedRef.current) setConversation(c);
+
+        // Control timers based on who spoke last
+        try {
+          const logs = msg.conversation || [];
+          const last = logs[logs.length - 1] || {};
+          const lastRole = last.role;
+          if (isMountedRef.current) {
+            if (lastRole === "assistant" || lastRole === "bot") {
+              setStartTimer(false);
+              setResetTimer(true);
+            } else if (lastRole === "user") {
+              setResetTimer(false);
+              setStartTimer(true);
+            }
+          }
+        } catch (e) { /* ignore */ }
+
+        // Try to persist the latest conversation in background (best-effort)
+        (async () => {
+          try {
+            if (candidateId) {
+              await axios.post('/api/interview-feedback/save', {
+                candidateId,
+                interviewId: interview_id,
+                conversation: msg.conversation,
+              });
+            }
+          } catch (e) {
+            // ignore — endpoint may not exist; this is best-effort
+          }
+        })();
       }
     });
+
 
     vapi.on("call-end", () => {
       // ✅ FIX 1: use refs for latest values, compute reason correctly
