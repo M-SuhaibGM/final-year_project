@@ -17,9 +17,7 @@ function StartInterview() {
   const { interview_id } = useParams();
   const router = useRouter();
 
-  /* ───────────────────────── REFS — ALL DECLARED FIRST ─────────────────────────
-     ✅ FIX: every ref now lives above any useEffect that references it.
-     This prevents "Cannot access 'X' before initialization" crashes. */
+  /* ───────────────────────── REFS ───────────────────────── */
   const vapiRef = useRef(null);
   const currentQuestionIndexRef = useRef(0);
   const progressPercentageRef = useRef(0);
@@ -29,7 +27,11 @@ function StartInterview() {
   const initStartedRef = useRef(false);
   const timerRef = useRef(null);
   const isMountedRef = useRef(true);
-  const hasGreetedRef = useRef(false); // ✅ toast fires once only
+  const hasGreetedRef = useRef(false);
+
+  // ✅ NEW REFS: Track anti-cheat metrics to bypass stale hook closure states
+  const tabSwitchCountRef = useRef(0);
+  const switchTimestampsRef = useRef([]);
 
   /* ───────────────────────── STATE ───────────────────────── */
   const [activeUser, setActiveUser] = useState(false);
@@ -48,6 +50,13 @@ function StartInterview() {
 
   const { tabSwitchCount, switchTimestamps } = useAntiCheat(activeUser, candidateId, dbTabSwitches);
 
+  /* ───────────────────────── Keep Anti-Cheat Refs Synced ───────────────────────── */
+  // ✅ Keeps live anti-cheat data updated in real-time accessible to Vapi event loops
+  useEffect(() => {
+    tabSwitchCountRef.current = tabSwitchCount;
+    switchTimestampsRef.current = switchTimestamps;
+  }, [tabSwitchCount, switchTimestamps]);
+
   /* ───────────────────────── Track mount/unmount ───────────────────────── */
   useEffect(() => {
     isMountedRef.current = true;
@@ -56,8 +65,7 @@ function StartInterview() {
     };
   }, []);
 
-  /* ───────────────────────── Initialize candidate record ─────────────────────────
-     ✅ Safe now — isMountedRef is declared above this effect */
+  /* ───────────────────────── Initialize candidate record ───────────────────────── */
   useEffect(() => {
     if (!interviewInfo?.userEmail || !interview_id) return;
 
@@ -119,11 +127,7 @@ function StartInterview() {
 
   const totalQuestions = interviewInfo?.interviewData?.questions?.length || 5;
 
-  /* ───────────────────────── Question index — deduped ─────────────────────────
-     ✅ FIX C: only count the START of a new assistant turn, not every
-     interim/duplicate message Vapi sends within the same turn.
-     ✅ FIX D: base case is 0, not 1 — so progress doesn't show 20% before
-     the agent has actually asked anything. */
+  /* ───────────────────────── Question index — deduped ───────────────────────── */
   const currentQuestionIndex = useMemo(() => {
     if (!conversation) return 0;
     try {
@@ -131,8 +135,6 @@ function StartInterview() {
       const assistantTurns = logs.reduce((count, msg, i) => {
         const isAssistant = msg.role === "assistant" || msg.role === "bot";
         const prevWasAssistant = i > 0 && (logs[i - 1].role === "assistant" || logs[i - 1].role === "bot");
-        // ✅ Only count substantial messages (>15 chars) as a real question,
-        //    filters out "okay", "got it", "mm-hmm" type filler turns
         const isSubstantial = (msg.content || msg.message || "").length > 15;
         if (isAssistant && !prevWasAssistant && isSubstantial) return count + 1;
         return count;
@@ -169,9 +171,6 @@ function StartInterview() {
       if (isMountedRef.current) setActiveUser(true);
     });
 
-    /* ✅ FIX A + B: toast fires once per interview (hasGreetedRef), and
-       the response timer is PAUSED while the AI is speaking — it is
-       reset/restarted in speech-end below, not here. */
     vapi.on("speech-start", () => {
       if (!hasGreetedRef.current) {
         hasGreetedRef.current = true;
@@ -180,11 +179,6 @@ function StartInterview() {
       if (isMountedRef.current) setStartTimer(false);
     });
 
-    /* ✅ FIX B: this fires once per question (when the AI finishes asking
-       and hands control to the candidate) — NOT on every speech utterance
-       mid-question. resetTimer is pulsed true→false so TimerComponent
-       zeroes the count exactly once per question instead of restarting
-       its interval repeatedly. */
     vapi.on("speech-end", () => {
       if (isMountedRef.current) {
         setStartTimer(true);
@@ -202,47 +196,39 @@ function StartInterview() {
     vapi.on("message", (msg) => {
       if (msg?.conversation) {
         const c = JSON.stringify(msg.conversation);
-        conversationRef.current = c; // update ref immediately — no stale reads
+        conversationRef.current = c;
         if (isMountedRef.current) setConversation(c);
       }
     });
 
     vapi.on("call-end", () => {
-      if (feedbackCalledRef.current) return;
-      feedbackCalledRef.current = true;
       isCallActiveRef.current = false;
+      if (isMountedRef.current) setActiveUser(false);
 
       const latestIndex = currentQuestionIndexRef.current;
       const latestProgress = progressPercentageRef.current;
       const latestConv = conversationRef.current;
+      const latestTabCount = tabSwitchCountRef.current;
+      const latestTimestamps = switchTimestampsRef.current;
 
       const reason = latestIndex >= totalQuestions
         ? "Interview Completed Normally"
         : "User Ended Early";
 
-      if (isMountedRef.current) setActiveUser(false);
-
-      // Fire-and-forget — runs in the background, doesn't block call-end
-      GenerateFeedback(reason, latestProgress, latestConv);
+      // Execute directly — let the function internally handle the lock
+      GenerateFeedback(reason, latestProgress, latestConv, latestTabCount, latestTimestamps);
     });
 
     vapi.on("error", (err) => {
       console.log("❌ [Vapi] error:", err);
-
       const isNormalEnd =
         err?.error?.type === "ejected" ||
         err?.error?.msg === "Meeting has ended" ||
         err?.errorMsg === "Meeting has ended" ||
         err?.error?.type === "no-room";
 
-      if (isNormalEnd) {
-        console.log("ℹ️ [Vapi] Normal call end — not an error");
-        return;
-      }
-
-      if (err?.type === "daily-error" && !isCallActiveRef.current) {
-        return;
-      }
+      if (isNormalEnd) return;
+      if (err?.type === "daily-error" && !isCallActiveRef.current) return;
 
       if (isMountedRef.current) {
         toast.error("Connection error — check your internet.");
@@ -312,19 +298,24 @@ function StartInterview() {
     });
   };
 
-  /* ───────────────────────── GenerateFeedback — background task ───────────────────────── */
-  const GenerateFeedback = async (reason, progress, conv) => {
+  /* ───────────────────────── GenerateFeedback ───────────────────────── */
+  /* ───────────────────────── GenerateFeedback ───────────────────────── */
+  const GenerateFeedback = async (reason, progress, conv, tabCount, timestamps) => {
+    // 🛑 CRITICAL FIX: Guard clause using the Ref immediately before any async operations
+    if (feedbackCalledRef.current) return;
+    feedbackCalledRef.current = true; // Synchronously lock entry
+
     if (isMountedRef.current) setLoading(true);
 
     try {
       const aiRes = await axios.post("/api/ai-feedback", { conversation: conv });
-
       if (aiRes.data?.error) throw new Error(aiRes.data.error);
 
       const parsed = typeof aiRes.data === "string"
         ? JSON.parse(aiRes.data.replace(/```json|```/gi, "").trim())
         : aiRes.data;
 
+      // ✅ EXPLICIT AWAIT: Blocks redirection until database successfully completes mutation
       await axios.post("/api/interview-feedback", {
         userName: interviewInfo?.userName,
         userEmail: interviewInfo?.userEmail,
@@ -333,9 +324,9 @@ function StartInterview() {
         exitReason: reason,
         progressAtExit: progress,
         completionStatus: progress === 100 ? "Success" : "Incomplete",
-        tabSwitches: tabSwitchCount,
+        tabSwitches: tabCount,
         securityFlags: {
-          timestamps: switchTimestamps,
+          timestamps: timestamps,
           browser: typeof navigator !== "undefined" ? navigator.userAgent : "",
           platform: typeof navigator !== "undefined" ? navigator.platform : "",
         },
@@ -346,6 +337,9 @@ function StartInterview() {
       }
     } catch (err) {
       console.error("GenerateFeedback error:", err);
+
+      // Reset lock only if you want to allow a retry on absolute failure
+      // feedbackCalledRef.current = false; 
 
       if (isMountedRef.current) {
         toast.error("Feedback error — redirecting…");

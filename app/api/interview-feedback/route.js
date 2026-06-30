@@ -52,8 +52,6 @@ export async function POST(req) {
                 },
             });
         }
-
-        console.log("Saved Feedback with Security Metrics:", result);
         return NextResponse.json({ success: true, data: result });
     } catch (error) {
         console.error("Database Save Error:", error); // Helpful for debugging

@@ -94,13 +94,22 @@ format: interviewQuestions=[
   ...
 }]
 🎯 The goal is to create a structured, relevant, and time-optimized interview plan for a {{jobTitle}} role.`;
+export const FEEDBACK_PROMPT = `
+{{conversation}}
 
-export const FEEDBACK_PROMPT = `{{conversation}}
-Depends on this Interview Conversation between assistant and user, 
-give me feedback for the user interview. Give me rating out of 10 for Technical Skills, 
-Communication, Problem Solving, and Experience. Also give me a summary in 3 lines 
-about the interview and one line to let me know whether it is recommended 
-for hire or not with a message. Give me the response in JSON format:
+Based on the interview conversation above, evaluate the candidate.
+
+IMPORTANT INSTRUCTIONS:
+- ALWAYS write the feedback in English only.
+- NEVER use Urdu, Hindi, Arabic, or any other language.
+- Even if the interview was conducted in another language, the output MUST be entirely in English.
+- Return ONLY valid JSON.
+- Do not include markdown or code fences.
+- The summary should contain exactly 3 concise English sentences.
+- recommendation should be either "Yes" or "No".
+- recommendationMsg should be exactly one English sentence.
+
+Return JSON in this format:
 
 {
   "feedback": {
@@ -110,11 +119,12 @@ for hire or not with a message. Give me the response in JSON format:
       "problemSolving": 4,
       "experience": 7
     },
-    "summary": "<in 3 lines>",
-    "recommendation": "",
-    "recommendationMsg": ""
+    "summary": "<3 English sentences>",
+    "recommendation": "Yes",
+    "recommendationMsg": "<1 English sentence>"
   }
-}`;
+}
+`;
 
 
 
