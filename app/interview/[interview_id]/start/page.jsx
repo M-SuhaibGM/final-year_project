@@ -14,6 +14,24 @@ import { useAntiCheat } from "@/hooks/useAntiCheat";
 
 function StartInterview() {
   const { interviewInfo } = useContext(InterviewDataContext);
+  const { interview_id } = useParams();
+  const router = useRouter();
+
+  /* ───────────────────────── REFS — ALL DECLARED FIRST ─────────────────────────
+     ✅ FIX: every ref now lives above any useEffect that references it.
+     This prevents "Cannot access 'X' before initialization" crashes. */
+  const vapiRef = useRef(null);
+  const currentQuestionIndexRef = useRef(0);
+  const progressPercentageRef = useRef(0);
+  const conversationRef = useRef(null);
+  const feedbackCalledRef = useRef(false);
+  const isCallActiveRef = useRef(false);
+  const initStartedRef = useRef(false);
+  const timerRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const hasGreetedRef = useRef(false); // ✅ toast fires once only
+
+  /* ───────────────────────── STATE ───────────────────────── */
   const [activeUser, setActiveUser] = useState(false);
   const [conversation, setConversation] = useState();
   const [hasInterviewStarted, setHasInterviewStarted] = useState(false);
@@ -28,12 +46,21 @@ function StartInterview() {
   const [candidateId, setCandidateId] = useState(null);
   const [dbTabSwitches, setDbTabSwitches] = useState(0);
 
-  const { interview_id } = useParams();
+  const { tabSwitchCount, switchTimestamps } = useAntiCheat(activeUser, candidateId, dbTabSwitches);
 
-  // Initialize candidate details in database on start
+  /* ───────────────────────── Track mount/unmount ───────────────────────── */
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  /* ───────────────────────── Initialize candidate record ─────────────────────────
+     ✅ Safe now — isMountedRef is declared above this effect */
   useEffect(() => {
     if (!interviewInfo?.userEmail || !interview_id) return;
-    
+
     const initCandidate = async () => {
       try {
         const res = await axios.post("/api/interview-feedback/init", {
@@ -53,29 +80,7 @@ function StartInterview() {
     initCandidate();
   }, [interviewInfo, interview_id]);
 
-  const { tabSwitchCount, switchTimestamps } = useAntiCheat(activeUser, candidateId, dbTabSwitches);
-  const router = useRouter();
-
-  // ── Refs ──────────────────────────────────────────────────
-  const vapiRef = useRef(null);
-  const currentQuestionIndexRef = useRef(1);
-  const progressPercentageRef = useRef(0);
-  const conversationRef = useRef(null);
-  const feedbackCalledRef = useRef(false);
-  const isCallActiveRef = useRef(false);
-  const initStartedRef = useRef(false);
-  const timerRef = useRef(null);
-  const isMountedRef = useRef(true);   // ✅ FIX 4: track mount state
-
-  // ── Track mount/unmount ───────────────────────────────────
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // ── Elapsed timer ─────────────────────────────────────────
+  /* ───────────────────────── Elapsed timer (header) ───────────────────────── */
   useEffect(() => {
     if (activeUser) {
       timerRef.current = setInterval(() => {
@@ -84,14 +89,13 @@ function StartInterview() {
     } else {
       clearInterval(timerRef.current);
     }
-    // ✅ FIX 6: always clear on cleanup, not just when activeUser changes
     return () => clearInterval(timerRef.current);
   }, [activeUser]);
 
   const fmtTime = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-  // ── Fetch user config ─────────────────────────────────────
+  /* ───────────────────────── Fetch user config ───────────────────────── */
   useEffect(() => {
     const VALID = [
       "Clara", "Godfrey", "Layla", "Sid", "Gustavo", "Elliot", "Kylie", "Rohan",
@@ -115,22 +119,33 @@ function StartInterview() {
 
   const totalQuestions = interviewInfo?.interviewData?.questions?.length || 5;
 
+  /* ───────────────────────── Question index — deduped ─────────────────────────
+     ✅ FIX C: only count the START of a new assistant turn, not every
+     interim/duplicate message Vapi sends within the same turn.
+     ✅ FIX D: base case is 0, not 1 — so progress doesn't show 20% before
+     the agent has actually asked anything. */
   const currentQuestionIndex = useMemo(() => {
-    if (!conversation) return 1;
+    if (!conversation) return 0;
     try {
       const logs = JSON.parse(conversation);
-      return Math.min(
-        logs.filter(m => m.role === "assistant" || m.role === "bot").length + 1,
-        totalQuestions
-      );
-    } catch { return 1; }
+      const assistantTurns = logs.reduce((count, msg, i) => {
+        const isAssistant = msg.role === "assistant" || msg.role === "bot";
+        const prevWasAssistant = i > 0 && (logs[i - 1].role === "assistant" || logs[i - 1].role === "bot");
+        // ✅ Only count substantial messages (>15 chars) as a real question,
+        //    filters out "okay", "got it", "mm-hmm" type filler turns
+        const isSubstantial = (msg.content || msg.message || "").length > 15;
+        if (isAssistant && !prevWasAssistant && isSubstantial) return count + 1;
+        return count;
+      }, 0);
+      return Math.min(assistantTurns, totalQuestions);
+    } catch { return 0; }
   }, [conversation, totalQuestions]);
 
   const progressPercentage = useMemo(() =>
     Math.round((currentQuestionIndex / totalQuestions) * 100),
     [currentQuestionIndex, totalQuestions]);
 
-  // ── Keep refs in sync ─────────────────────────────────────
+  /* ───────────────────────── Keep refs in sync ───────────────────────── */
   useEffect(() => {
     currentQuestionIndexRef.current = currentQuestionIndex;
     progressPercentageRef.current = progressPercentage;
@@ -140,10 +155,9 @@ function StartInterview() {
     conversationRef.current = conversation;
   }, [conversation]);
 
-  // ── Vapi setup ────────────────────────────────────────────
+  /* ───────────────────────── Vapi setup ───────────────────────── */
   useEffect(() => {
     if (!interviewInfo || hasInterviewStarted || !isMicChecked || !isConfigLoaded) return;
-    // ✅ FIX 2: do NOT reset initStartedRef in cleanup — only guard here
     if (initStartedRef.current) return;
     initStartedRef.current = true;
 
@@ -152,62 +166,69 @@ function StartInterview() {
 
     vapi.on("call-start", () => {
       isCallActiveRef.current = true;
-      if (isMountedRef.current) setActiveUser(true);   // ✅ FIX 4
+      if (isMountedRef.current) setActiveUser(true);
     });
 
+    /* ✅ FIX A + B: toast fires once per interview (hasGreetedRef), and
+       the response timer is PAUSED while the AI is speaking — it is
+       reset/restarted in speech-end below, not here. */
     vapi.on("speech-start", () => {
-      toast.success("Interview started!");
-      if (isMountedRef.current) {
-        setStartTimer(false);
-        setResetTimer(true);
+      if (!hasGreetedRef.current) {
+        hasGreetedRef.current = true;
+        toast.success("Interview started!");
       }
+      if (isMountedRef.current) setStartTimer(false);
     });
 
+    /* ✅ FIX B: this fires once per question (when the AI finishes asking
+       and hands control to the candidate) — NOT on every speech utterance
+       mid-question. resetTimer is pulsed true→false so TimerComponent
+       zeroes the count exactly once per question instead of restarting
+       its interval repeatedly. */
     vapi.on("speech-end", () => {
       if (isMountedRef.current) {
         setStartTimer(true);
-        setResetTimer(false);
+        setResetTimer(true);
+        setTimeout(() => {
+          if (isMountedRef.current) setResetTimer(false);
+        }, 50);
       }
     });
 
     vapi.on("volume-level", (l) => {
-      if (isMountedRef.current) setVolume(l);           // ✅ FIX 4
+      if (isMountedRef.current) setVolume(l);
     });
 
     vapi.on("message", (msg) => {
       if (msg?.conversation) {
         const c = JSON.stringify(msg.conversation);
-        conversationRef.current = c;                    // ✅ FIX 3: update ref immediately
+        conversationRef.current = c; // update ref immediately — no stale reads
         if (isMountedRef.current) setConversation(c);
       }
     });
 
     vapi.on("call-end", () => {
-      // ✅ FIX 1: use refs for latest values, compute reason correctly
       if (feedbackCalledRef.current) return;
       feedbackCalledRef.current = true;
       isCallActiveRef.current = false;
 
       const latestIndex = currentQuestionIndexRef.current;
       const latestProgress = progressPercentageRef.current;
-      const latestConv = conversationRef.current;  // ✅ FIX 3: read from ref, not state
+      const latestConv = conversationRef.current;
 
-      // Compute reason from actual progress, not hardcoded string
       const reason = latestIndex >= totalQuestions
         ? "Interview Completed Normally"
         : "User Ended Early";
 
       if (isMountedRef.current) setActiveUser(false);
 
-      // ✅ FIX 5: run in background — don't await in render thread
+      // Fire-and-forget — runs in the background, doesn't block call-end
       GenerateFeedback(reason, latestProgress, latestConv);
     });
 
     vapi.on("error", (err) => {
       console.log("❌ [Vapi] error:", err);
 
-      // ✅ These are NORMAL end-of-call events — not real errors
-      // Vapi fires this when the AI agent closes the room naturally
       const isNormalEnd =
         err?.error?.type === "ejected" ||
         err?.error?.msg === "Meeting has ended" ||
@@ -216,15 +237,13 @@ function StartInterview() {
 
       if (isNormalEnd) {
         console.log("ℹ️ [Vapi] Normal call end — not an error");
-        return; // ✅ Silently ignore — call-end handler takes over
+        return;
       }
 
-      // ✅ Also ignore daily errors before call is active (StrictMode remounts)
       if (err?.type === "daily-error" && !isCallActiveRef.current) {
         return;
       }
 
-      // Only show toast for genuine connection problems
       if (isMountedRef.current) {
         toast.error("Connection error — check your internet.");
       }
@@ -235,7 +254,6 @@ function StartInterview() {
       if (isMountedRef.current) setHasInterviewStarted(true);
     }
 
-    // ✅ FIX 2 & 7: only stop if call was actually active; don't reset initStartedRef
     return () => {
       vapi.removeAllListeners();
       if (isCallActiveRef.current) {
@@ -246,7 +264,7 @@ function StartInterview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewInfo, isMicChecked, isConfigLoaded]);
 
-  // ── startCall — receives vapi instance to avoid stale ref ─
+  /* ───────────────────────── startCall ───────────────────────── */
   const startCall = (vapiInstance) => {
     const VALID = [
       "Clara", "Godfrey", "Layla", "Sid", "Gustavo", "Elliot", "Kylie", "Rohan",
@@ -288,14 +306,13 @@ function StartInterview() {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: `You are an AI recruiter. Conduct the interview in ${sysLang[config.language] || "English"}. Ask these questions one by one:\n${ql}\nWait for the at least 3s user's  full answer before moving to the next question.`,
+          content: `You are an AI recruiter. Conduct the interview in ${sysLang[config.language] || "English"}. Ask these questions one by one:\n${ql}\nAsk one question, then stay completely silent and wait for the candidate to fully respond. Do not interrupt or move to the next question until the candidate has clearly finished their answer.`,
         }],
       },
     });
   };
 
-  // ── GenerateFeedback — runs fully in background ───────────
-  // ✅ FIX 5: this is a fire-and-forget function — caller does NOT await it
+  /* ───────────────────────── GenerateFeedback — background task ───────────────────────── */
   const GenerateFeedback = async (reason, progress, conv) => {
     if (isMountedRef.current) setLoading(true);
 
@@ -324,7 +341,6 @@ function StartInterview() {
         },
       });
 
-      // ✅ FIX 8: only navigate if component is still mounted
       if (isMountedRef.current) {
         router.replace(`/interview/${interview_id}/completed`);
       }
@@ -333,7 +349,6 @@ function StartInterview() {
 
       if (isMountedRef.current) {
         toast.error("Feedback error — redirecting…");
-        // Small delay so the toast is visible before navigation
         setTimeout(() => {
           if (isMountedRef.current) {
             router.replace(`/interview/${interview_id}/completed`);

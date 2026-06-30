@@ -111,7 +111,9 @@ function WelcomeContainer() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-blue-50" />
             <DropdownMenuItem className="flex items-center gap-2 p-3 rounded-xl cursor-pointer hover:bg-blue-50 text-slate-600">
+              <Link href="/settings" className="flex items-center gap-2 w-full">
               <User className="w-4 h-4" /> Profile Settings
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleLogout}

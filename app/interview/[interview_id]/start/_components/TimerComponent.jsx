@@ -1,26 +1,31 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const TimerComponent = ({ startTimer, resetTimer }) => {
   const [seconds, setSeconds] = useState(0);
+  const intervalRef = useRef(null);
 
+  // ✅ Separate effect for the reset pulse — only zeroes the counter,
+  //    does not touch the running interval
   useEffect(() => {
-    let interval;
-
-    if (startTimer) {
-      interval = setInterval(() => {
-        setSeconds((prev) => prev + 1);
-      }, 1000);
-    }
-
     if (resetTimer) {
       setSeconds(0);
     }
+  }, [resetTimer]);
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [startTimer, resetTimer]);
+  // ✅ Separate effect for starting/stopping — only depends on startTimer,
+  //    so it does NOT restart when resetTimer toggles
+  useEffect(() => {
+    if (startTimer) {
+      intervalRef.current = setInterval(() => {
+        setSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      clearInterval(intervalRef.current);
+    }
+
+    return () => clearInterval(intervalRef.current);
+  }, [startTimer]); // ✅ resetTimer removed from deps — this is the key fix
 
   const formatTime = (totalSeconds) => {
     const hrs = Math.floor(totalSeconds / 3600);

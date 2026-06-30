@@ -10,6 +10,7 @@ import {
   ShieldCheck, Save, Loader2, CreditCard,
   ExternalLink, CheckCircle2, Globe, Volume2
 } from "lucide-react";
+import { getUserPayments } from "@/actions/payment-actions";
 
 // ✅ FIXED: Working voice IDs with correct providers (2026)
 const voiceOptions = [
@@ -34,7 +35,20 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
 
+  useEffect(() => {
+    const loadPayments = async () => {
+      const res = await getUserPayments();
+      if (res.success) {
+        setPayments(res.payments);
+      }
+      setLoadingPayments(false);
+    };
+
+    loadPayments();
+  }, []);
   const [config, setConfig] = useState({
     language: "en-US",
     voiceId: "Elliot",
@@ -284,21 +298,45 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {[
-                  { date: "Mar 10, 2026", desc: "Pro Recruiter (Annual)", amount: "$120.00" },
-                  { date: "Feb 15, 2026", desc: "Basic Credits Top-up", amount: "$15.00" },
-                ].map((row) => (
-                  <tr key={row.date} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 text-slate-400">{row.date}</td>
-                    <td className="p-4 font-medium text-slate-700">{row.desc}</td>
-                    <td className="p-4">
-                      <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[10px] font-bold border border-green-100">
-                        Paid
-                      </span>
+                {payments.length > 0 ? (
+                  payments.map((payment) => (
+                    <tr
+                      key={payment.id}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
+                      <td className="p-4 text-slate-400">
+                        {new Date(payment.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </td>
+
+                      <td className="p-4 font-medium text-slate-700">
+                        {payment.creditsAdded} Credits Added
+                      </td>
+
+                      <td className="p-4">
+                        <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[10px] font-bold border border-green-100">
+                          Paid
+                        </span>
+                      </td>
+
+                      <td className="p-4 text-right font-bold text-slate-900">
+                        ${payment.amount.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="p-6 text-center text-slate-400"
+                    >
+                      No payment history found.
                     </td>
-                    <td className="p-4 text-right font-bold text-slate-900">{row.amount}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

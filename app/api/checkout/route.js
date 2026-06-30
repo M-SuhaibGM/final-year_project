@@ -6,8 +6,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 export async function POST(req) {
   try {
     const { amount, credits, email } = await req.json();
-    console.log("Initiating checkout with:", { amount, credits, email }); // Debug log
-
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [

@@ -1,62 +1,76 @@
-import { prisma } from "@/lib/db";
+// app/api/add-credits/route.js
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { prisma as db } from "@/lib/db";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function POST(req) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { sessionId } = await req.json();
 
-    // 1. Check if this payment session was already processed
-    const existingPayment = await prisma.payment.findUnique({
-      where: { stripeSessionId: sessionId }
+    if (!sessionId) {
+      return NextResponse.json({ error: "sessionId required" }, { status: 400 });
+    }
+
+    // ✅ Check if already processed FIRST — before hitting Stripe
+    const existing = await db.payment.findUnique({
+      where: { stripeSessionId: sessionId },
     });
 
-    if (existingPayment) {
-      return NextResponse.json({ error: "Credits already added" }, { status: 400 });
+    if (existing) {
+      // ✅ Already done — return success so frontend stops retrying
+      console.log("Payment already processed:", sessionId);
+      return NextResponse.json({
+        success: true,
+        alreadyProcessed: true,
+        creditsAdded: existing.creditsAdded,
+      });
     }
 
-    // 2. Verify with Stripe
-    const stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
-    if (stripeSession.payment_status !== 'paid') {
-      return NextResponse.json({ error: "Payment not verified" }, { status: 400 });
+    // ✅ Verify with Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== "paid") {
+      return NextResponse.json({ error: "Payment not completed" }, { status: 400 });
     }
 
-    /* MODIFICATION: 
-       Get the credit amount from the metadata we set in the Checkout API.
-       We use parseInt because metadata values are always strings.
-    */
-    const creditsToAdd = parseInt(stripeSession.metadata.credits);
+    const userEmail   = session.metadata?.email || session.customer_email;
+    const creditsToAdd = Number(session.metadata?.credits);
+    const amount       = session.amount_total / 100;
 
-    if (isNaN(creditsToAdd)) {
-      return NextResponse.json({ error: "Invalid credit data in session" }, { status: 400 });
+    if (!userEmail || !creditsToAdd) {
+      return NextResponse.json({ error: "Missing metadata" }, { status: 400 });
     }
 
-    // 3. Atomic Transaction: Add credits AND record the payment
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { email: session.user.email },
-        data: { credits: { increment: creditsToAdd } },
+    // ✅ Use a transaction so credits + payment record are atomic
+    await db.$transaction([
+      db.user.update({
+        where: { email: userEmail },
+        data:  { credits: { increment: creditsToAdd } },
       }),
-      prisma.payment.create({
+      db.payment.create({
         data: {
           stripeSessionId: sessionId,
-          userEmail: session.user.email,
-          amount: stripeSession.amount_total / 100,
+          userEmail,
+          amount,
           creditsAdded: creditsToAdd,
-        }
-      })
+        },
+      }),
     ]);
 
-    return NextResponse.json({ success: true, added: creditsToAdd });
-  } catch (error) {
-    console.error("Payment Sync Error:", error);
-    return NextResponse.json({ error: "Verification failed" }, { status: 500 });
+    console.log(`✅ Credits added: ${creditsToAdd} for ${userEmail}`);
+    return NextResponse.json({ success: true, creditsAdded: creditsToAdd });
+
+  } catch (err) {
+    // ✅ Handle race condition — if two requests hit simultaneously
+    //    and both pass the duplicate check, the second will get P2002
+    if (err?.code === "P2002") {
+      console.log("Race condition — payment already recorded");
+      return NextResponse.json({ success: true, alreadyProcessed: true });
+    }
+
+    console.error("Payment Sync Error:", err);
+    return NextResponse.json({ error: "Failed to add credits" }, { status: 500 });
   }
 }
