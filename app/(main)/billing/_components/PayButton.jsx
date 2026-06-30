@@ -34,12 +34,14 @@ function PayButton({ amount, credits, className }) {
       if (result.data.success) {
         await update();
         window.dispatchEvent(new CustomEvent("credits-updated"));
+        window.dispatchEvent(new Event("credits-updated"));
         toast.success(` credits added!`);
 
       }
     } catch (err) {
       // 400 = not paid yet, ignore
       if (err?.response?.status !== 400) {
+        console.error("Error verifying payment:", err);
         toast.error("Could not verify payment.");
       }
     } finally {
