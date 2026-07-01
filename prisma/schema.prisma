@@ -44,9 +44,9 @@ model Account {
 
 model Interview {
   id             String             @id @default(uuid())
-  jobPosition    String
+  jobPosition    String         
   jobDescription String             @db.Text
-  duration       String
+  duration       String             
   interviewLink  String             @unique @map("interview_link")
   questions      Json
   type           Json
@@ -62,7 +62,7 @@ model Interview {
 model CandidateDetails {
   id               String    @id @default(uuid())
   interviewId      String    @map("interview_id")
-  userName         String?
+  userName         String?    
   userEmail        String?
   feedback         Json?
   exitReason       String?   @map("exit_reason")
