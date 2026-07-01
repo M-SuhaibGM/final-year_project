@@ -586,9 +586,9 @@ This project is part of a Final Year Project (FYP). All rights reserved.
 
 For questions or support, reach out to:
 
-- **Project Maintainer:** [Your Name]
-- **Email:** [your.email@university.edu]
-- **Supervisor:** [Supervisor Name]
+- **Project Maintainer:** M suhaib
+- **Email:** [mmsohaib@gmail.com]
+- **Supervisor:** [DR JAVED RASHEED]
 
 ---
 
